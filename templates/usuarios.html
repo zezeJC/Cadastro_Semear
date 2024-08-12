@@ -1,0 +1,150 @@
+{% extends "base.html" %} {% block conteudo %}
+<div class="container mt-4">
+  <h2>Lista de Usuários</h2>
+
+  <!-- Mensagens de Sucesso e Erro -->
+  <div class="container mt-3">
+    {%- for mensagem in get_flashed_messages(with_categories=True) %}
+    <div
+      class="alert alert-{{ mensagem[0] }} alert-dismissible fade show"
+      role="alert"
+    >
+      {{ mensagem[1] }}
+      <button
+        type="button"
+        class="btn-close"
+        data-bs-dismiss="alert"
+        aria-label="Close"
+      ></button>
+    </div>
+    {%- endfor %}
+  </div>
+
+  <!-- Formulário de pesquisa com pesquisa ao digitar -->
+  <form class="d-flex mb-4">
+    <input
+      id="search-query"
+      class="form-control me-2"
+      type="search"
+      placeholder="Pesquisar por nome, CPF ou nome da mãe"
+      aria-label="Search"
+    />
+  </form>
+
+  <a href="{{ url_for('cadastro') }}" class="btn btn-primary">
+    <i class="bi bi-person-plus"></i> Adicionar Usuário
+  </a>
+
+  <!-- Tabela de usuários -->
+  <table class="table table-bordered table-hover">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Foto</th>
+        <th>Nome</th>
+        <th>Nome da Mãe</th>
+        <th>Data de Nascimento</th>
+        <th>CPF</th>
+        <th>RG</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody id="usuarios-table-body">
+      {% for usuario in usuarios.items %}
+      <tr>
+        <td>{{ usuario.id }}</td>
+        <td>
+          {% if usuario.foto %}
+          <img
+            src="{{ url_for('static', filename='uploads/fotos/' ~ usuario.foto) }}"
+            alt="Foto do usuário"
+            width="50"
+          />
+          {% else %} Sem foto {% endif %}
+        </td>
+        <td>{{ usuario.nome }}</td>
+        <td>{{ usuario.nome_mae }}</td>
+        <td>{{ usuario.dn.strftime('%d/%m/%Y') }}</td>
+        <td>{{ usuario.cpf }}</td>
+        <td>{{ usuario.rg }}</td>
+        <td class="acoes">
+          <!-- Ações: Editar, Imprimir e Remover -->
+          <a
+            href="{{ url_for('atualizar_usuario', id=usuario.id) }}"
+            class="btn btn-warning btn-sm"
+            ><i class="bi bi-pencil"></i
+          ></a>
+          <a
+            href="{{ url_for('imprimir_cartao', id=usuario.id) }}"
+            class="btn btn-primary btn-sm"
+            ><i class="bi bi-printer"></i
+          ></a>
+          <form
+            action="{{ url_for('remover_usuario', id=usuario.id) }}"
+            method="POST"
+            class="d-inline"
+          >
+            <button
+              type="submit"
+              class="btn btn-danger btn-sm"
+              onclick="return confirm('Tem certeza que deseja remover este usuário?');"
+            >
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Paginação -->
+  <nav aria-label="Page navigation example">
+    <ul class="pagination justify-content-center">
+      <li class="page-item {% if not usuarios.has_prev %}disabled{% endif %}">
+        <a
+          class="page-link"
+          href="{{ url_for('usuarios_view', page=usuarios.prev_num, q=request.args.get('q', '')) }}"
+          aria-label="Previous"
+        >
+          <span aria-hidden="true">&laquo;</span>
+        </a>
+      </li>
+      {% for page_num in usuarios.iter_pages() %} {% if page_num %}
+      <li class="page-item {% if usuarios.page == page_num %}active{% endif %}">
+        <a
+          class="page-link"
+          href="{{ url_for('usuarios_view', page=page_num, q=request.args.get('q', '')) }}"
+          >{{ page_num }}</a
+        >
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">...</span></li>
+      {% endif %} {% endfor %}
+      <li class="page-item {% if not usuarios.has_next %}disabled{% endif %}">
+        <a
+          class="page-link"
+          href="{{ url_for('usuarios_view', page=usuarios.next_num, q=request.args.get('q', '')) }}"
+          aria-label="Next"
+        >
+          <span aria-hidden="true">&raquo;</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+<!-- Script para pesquisa ao digitar -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+  $(document).ready(function () {
+    // Função de pesquisa ao digitar
+    $("#search-query").on("input", function () {
+      let query = $(this).val().toLowerCase();
+      $("#usuarios-table-body tr").filter(function () {
+        $(this).toggle($(this).text().toLowerCase().indexOf(query) > -1);
+      });
+    });
+  });
+</script>
+{% endblock conteudo %}

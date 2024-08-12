@@ -1,0 +1,9 @@
+Flask
+flask_sqlalchemy
+flask_migrate
+flask_paginate
+pymysql
+Pillow
+qrcode
+python-dotenv
+pywin32
