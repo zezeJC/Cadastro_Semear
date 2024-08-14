@@ -1,13 +1,44 @@
 import os
-import win32print
-import win32ui
-from PIL import Image, ImageWin
+import platform
+import subprocess
+import sys
+from PIL import Image
+
+def install_package(package_name):
+    """
+    Função para instalar pacotes dinamicamente usando pip.
+    """
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+
+# Verifica o sistema operacional
+current_system = platform.system()
+
+# Importa bibliotecas específicas de acordo com o sistema operacional
+if current_system == "Windows":
+    try:
+        import win32print
+        import win32ui
+        from PIL import ImageWin
+    except ImportError:
+        print("Instalando pacotes necessários para Windows...")
+        install_package('pywin32')
+        install_package('pillow')
+        import win32print
+        import win32ui
+        from PIL import ImageWin
+
+elif current_system == "Linux" or current_system == "Darwin":  # Darwin é o nome do sistema para macOS
+    try:
+        import cups
+    except ImportError:
+        print("Instalando pacotes necessários para Linux/macOS...")
+        install_package('pycups')
 
 def print_card(user_id, printer_name):
     """
     Função principal para imprimir cartões de usuário.
     Baseia-se no ID do usuário para encontrar as imagens frontais e traseiras do cartão
-    e enviá-las para impressão.
+    e enviá-las para impressão, com suporte para múltiplos sistemas operacionais.
     """
 
     # Define os caminhos das imagens com base no ID do usuário
@@ -23,67 +54,59 @@ def print_card(user_id, printer_name):
         print(f"Erro: Imagem do verso para o usuário ID {user_id} não encontrada.")
         return
 
-    try:
-        # Tenta abrir a impressora especificada
-        hprinter = win32print.OpenPrinter(printer_name)
-    except Exception as e:
-        print(f"Erro ao tentar abrir a impressora '{printer_name}': {e}")
-        return
-    
-    try:
-        # Tenta iniciar o documento de impressão
-        hjob = win32print.StartDocPrinter(hprinter, 1, ("Impressão de Cartão", None, "RAW"))
-    except Exception as e:
-        print(f"Erro ao iniciar o documento de impressão: {e}")
-        win32print.ClosePrinter(hprinter)
-        return
-    
-    try:
-        # Inicia a página de impressão
-        win32print.StartPagePrinter(hprinter)
-
-        # Preparar para impressão da frente do cartão
+    if current_system == "Windows":
+        # Implementação para Windows usando win32print
         try:
+            hprinter = win32print.OpenPrinter(printer_name)
+            hjob = win32print.StartDocPrinter(hprinter, 1, ("Impressão de Cartão", None, "RAW"))
+            win32print.StartPagePrinter(hprinter)
+
             hdc = win32ui.CreateDC()
-            hdc.CreatePrinterDC(printer_name)  # Cria um contexto de dispositivo para a impressora
-            hdc.StartDoc("Card Print")  # Inicia o documento de impressão
-            hdc.StartPage()  # Inicia a página de impressão
+            hdc.CreatePrinterDC(printer_name)
+            hdc.StartDoc("Card Print")
+            hdc.StartPage()
 
             # Imprimir a frente
-            img_front = Image.open(front_image_path)  # Abre a imagem da frente do cartão
-            img_front = img_front.convert("RGB")  # Converte a imagem para RGB
-            dib_front = ImageWin.Dib(img_front)  # Cria uma representação da imagem para a impressão
-            dib_front.draw(hdc.GetHandleOutput(), (0, 0, img_front.size[0], img_front.size[1]))  # Desenha a imagem na página
+            img_front = Image.open(front_image_path)
+            img_front = img_front.convert("RGB")
+            dib_front = ImageWin.Dib(img_front)
+            dib_front.draw(hdc.GetHandleOutput(), (0, 0, img_front.size[0], img_front.size[1]))
 
-            hdc.EndPage()  # Finaliza a página
-        except Exception as e:
-            print(f"Erro ao imprimir a frente do cartão: {e}")
-            return
-
-        # Preparar para impressão do verso do cartão
-        try:
-            hdc.StartPage()  # Inicia uma nova página para o verso
+            hdc.EndPage()
+            hdc.StartPage()
 
             # Imprimir o verso
-            img_back = Image.open(back_image_path)  # Abre a imagem do verso do cartão
-            img_back = img_back.convert("RGB")  # Converte a imagem para RGB
-            dib_back = ImageWin.Dib(img_back)  # Cria uma representação da imagem para a impressão
-            dib_back.draw(hdc.GetHandleOutput(), (0, 0, img_back.size[0], img_back.size[1]))  # Desenha a imagem na página
+            img_back = Image.open(back_image_path)
+            img_back = img_back.convert("RGB")
+            dib_back = ImageWin.Dib(img_back)
+            dib_back.draw(hdc.GetHandleOutput(), (0, 0, img_back.size[0], img_back.size[1]))
 
-            hdc.EndPage()  # Finaliza a página
-            hdc.EndDoc()  # Finaliza o documento de impressão
-            hdc.DeleteDC()  # Deleta o contexto de dispositivo da impressora
+            hdc.EndPage()
+            hdc.EndDoc()
+            hdc.DeleteDC()
+
+            win32print.EndPagePrinter(hprinter)
         except Exception as e:
-            print(f"Erro ao imprimir o verso do cartão: {e}")
-            return
+            print(f"Erro durante o processo de impressão no Windows: {e}")
+        finally:
+            try:
+                win32print.EndDocPrinter(hprinter)
+                win32print.ClosePrinter(hprinter)
+            except Exception as e:
+                print(f"Erro ao finalizar ou fechar a impressora no Windows: {e}")
 
-        win32print.EndPagePrinter(hprinter)  # Finaliza a página na impressora
-    except Exception as e:
-        print(f"Erro durante o processo de impressão: {e}")
-        return
-    finally:
+    elif current_system == "Linux" or current_system == "Darwin":
+        # Implementação para Linux e macOS usando CUPS
         try:
-            win32print.EndDocPrinter(hprinter)  # Finaliza o documento na impressora
-            win32print.ClosePrinter(hprinter)  # Fecha a conexão com a impressora
+            conn = cups.Connection()
+            printers = conn.getPrinters()
+            if printer_name not in printers:
+                print(f"Erro: Impressora '{printer_name}' não encontrada.")
+                return
+
+            # Cria a tarefa de impressão para frente e verso
+            for image in [front_image_path, back_image_path]:
+                conn.printFile(printer_name, image, f"Job {user_id}", {})
+            print("Impressão concluída com sucesso no Linux/macOS.")
         except Exception as e:
-            print(f"Erro ao finalizar ou fechar a impressora: {e}")
+            print(f"Erro durante o processo de impressão no Linux/macOS: {e}")
