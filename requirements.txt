@@ -7,4 +7,3 @@ pymysql
 Pillow
 qrcode
 python-dotenv
-pywin32==306
